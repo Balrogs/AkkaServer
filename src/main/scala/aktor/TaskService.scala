@@ -19,11 +19,12 @@ class TaskService extends Actor with ActorLogging {
   override def receive = {
     case data : TaskEvent => handlePacket(data)
 
+    case end : ActorRef => gameService ! end
+
     case _ => log.info("unknown message")
   }
 
   override def postStop() {
-    // clean up resources
     log.info("Stoping task service")
   }
 
@@ -35,7 +36,7 @@ class TaskService extends Actor with ActorLogging {
         val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageLogin(task.session,task.event.asInstanceOf[Login])
       case RegisterUser.code =>
-        log.info("User " + task.event.asInstanceOf[RegisterUser].id + " tries to register")
+        log.info("User " + task.event.asInstanceOf[RegisterUser].name + " tries to register")
         val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageRegister(task.session,task.event.asInstanceOf[RegisterUser])
       case GameAction.code =>
@@ -44,6 +45,10 @@ class TaskService extends Actor with ActorLogging {
       case EnterRoom.code =>
         log.info("User tries to enter the room")
         gameService ! GameService.JoinGame(task.session, task.event.asInstanceOf[EnterRoom])
+      case StatsRequest.code =>
+        log.info("User tries to get stats")
+        val storage = context.actorOf(Props[StorageService])
+        storage ! StorageService.StorageStats(task.session, task.event.asInstanceOf[StatsRequest])
       case _ =>
         log.info("Unknown message")
     }
