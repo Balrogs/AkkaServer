@@ -7,6 +7,7 @@ import akka.util.ByteString
 import global._
 
 import argonaut._, Argonaut._
+import global.server._
 
 class Session(val connection: ActorRef) extends Actor with ActorLogging {
 
@@ -51,7 +52,10 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
       case Some(EventType(4)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[EnterRoom].get)
       case Some(EventType(6)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[GameAction].get)
       case Some(EventType(5)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[InviteIntoRoom].get)
+      case Some(EventType(7)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[GameOver].get)
       case Some(EventType(9)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[StatsRequest].get)
+      case Some(EventType(11)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[AddToFriends].get)
+      case Some(EventType(12)) =>     taskService ! TaskService.TaskEvent(self,message.decodeOption[AddEventScore].get)
       case Some(_) => log.info("Unknown message: {}", string.utf8String.trim)
       case None =>   log.info("Unknown message: {}", string.utf8String.trim)
     }

@@ -1,5 +1,4 @@
-package global
-
+package global.server
 
 trait ServerCodes {
   def code: Long

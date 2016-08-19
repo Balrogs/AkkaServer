@@ -6,6 +6,8 @@ import aktor.gm.Room.{LostPlayer, PlayerInstance}
 import aktor.storage.StorageService
 import global._
 import argonaut._, Argonaut._
+import global.game.Player
+import global.server._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -17,8 +19,6 @@ class Room(id: Long) extends Actor with ActorLogging {
 
   private var players: Set[PlayerInstance] = Set.empty[PlayerInstance]
 
-  private val MAX_ACTIONS_COUNT = 10
-
   private var isGameStarted = false
 
   private var actions: mutable.Map[TaskEvent, Boolean] = mutable.Map.empty[TaskEvent, Boolean]
@@ -28,8 +28,6 @@ class Room(id: Long) extends Actor with ActorLogging {
   private val period = 1 seconds
 
   private var isPaused = true
-
-  case object RoomStop
 
   case object Tick
 
@@ -45,15 +43,16 @@ class Room(id: Long) extends Actor with ActorLogging {
 
     case player: PlayerInstance => addPlayer(player)
 
-    case task: TaskEvent => applyAction(task)
+    case task: TaskEvent => task.event.code match {
 
+      case GameAction.code => applyAction(task)
+
+      case GameOver.code => gameOver(task.event.asInstanceOf[GameOver])
+
+    }
     case Tick => tickAction
 
     case LostPlayer => waitForPlayer()
-
-    case RoomStop =>
-      gameOver()
-      context stop self
 
     case _ => log.info("unknown message")
   }
@@ -64,29 +63,58 @@ class Room(id: Long) extends Actor with ActorLogging {
     log.info("Stopping Room " + id)
   }
 
-  def gameOver(): Unit = {
+  def gameOver(task: GameOver): Unit = {
 
-    val winner_id: Long = players.reduceLeft((x, y) => if (x.score > y.score) x else y).id
-    players.foreach(p => p.session ! GameOver(winner_id, id).asJson)
+    val rank_diff = Math.abs(players.map(a => a.player.rank).reduce((a,b) => a-b))
+
+    var winner_score: Int = if( rank_diff / 2 < 4) 6 else rank_diff / 2
+    var looser_score: Int = if( rank_diff / 3 < 4) 4 else rank_diff / 3
+
+    task.v_type match {
+      case 0 =>
+      case 1 =>
+        winner_score /= 2
+        looser_score /= 2
+      case _ =>
+        winner_score = 0
+        looser_score = 0
+    }
+
+    players.foreach(p =>
+      if (p.player.id == task.winner_id)
+        p.session ! GameOver(task.winner_id, id, winner_score).asJson
+      else {
+        if(p.player.rank - looser_score < 1)
+          looser_score = p.player.rank - 1
+        p.session ! GameOver(task.winner_id, id, looser_score).asJson
+      }
+    )
 
     val storage = context.actorOf(Props[StorageService])
-    storage ! StorageService.StorageGameOver(players.map(p => p.id).toArray[Long], winner_id)
+    storage ! StorageService.StorageGameOver(players.map(p =>
+      if (p.player.id == task.winner_id) {
+        (p.player.id, winner_score)
+      } else
+        (p.player.id, looser_score)
+    ).toMap, task.winner_id)
+
+    context stop self
   }
 
   def addPlayer(player: PlayerInstance): Unit = {
-    players = players.filter(p => p.id != player.id)
+    players = players.filter(p => p.player.id != player.player.id)
     if (players.size < 2) {
       players = players + player
       player.session ! ServerResp(UserEnteredRoom.code).asJson
     }
     log.info("Players in room " + id + " : ")
-    players.foreach(p => log.info(p.id.toString))
+    players.foreach(p => log.info(p.player.id.toString))
 
     if (players.size == 2 && !isGameStarted) {
       isGameStarted = true
       isPaused = false
       log.info("Game in room " + id + " STARTED!")
-      players.foreach(p=> p.session ! ServerResp(GameStarted.code).asJson)
+      players.foreach(p => p.session ! ServerResp(GameStarted.code).asJson)
     }
 
     if (players.size == 2 && isPaused) {
@@ -103,30 +131,29 @@ class Room(id: Long) extends Actor with ActorLogging {
   }
 
   def tickAction() = {
-    if(!isPaused) {
+    if (!isPaused) {
       actions = actions.filter(a => !a._2).map(a => {
         log.info("Action sent: " + a._1.event.asInstanceOf[GameAction])
         players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAction].asJson
         (a._1, true)
       })
-      if (actions.count(a => a._2) >= MAX_ACTIONS_COUNT) {
-        self ! RoomStop
-      }
     }
   }
 
-  def waitForPlayer(): Unit ={
+  def waitForPlayer(): Unit = {
     isPaused = true
     log.info("Game in room " + id + " PAUSED!")
-    players.foreach(p=> p.session ! ServerResp(GamePaused.code).asJson)
+    players.foreach(p => p.session ! ServerResp(GamePaused.code).asJson)
   }
 
 }
 
 object Room {
 
-  case class PlayerInstance(session: ActorRef, id: Long, score: Int)
+  case class PlayerInstance(session: ActorRef, player: Player)
+
   case object LostPlayer
+
   def props(id: Long) = Props(new Room(id))
 
 }

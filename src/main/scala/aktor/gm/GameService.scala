@@ -3,25 +3,36 @@ package aktor.gm
 import akka.actor._
 import aktor.TaskService.TaskEvent
 import aktor.gm.Room.LostPlayer
+import aktor.storage.StorageService
 import global._
+import global.game.{Player, GameEvent}
+import global.server.{GameOver, GameAction, InviteIntoRoom, EnterRoom}
 import scala.collection.mutable
 import argonaut._, Argonaut._
+import scala.concurrent.duration._
 
 class GameService extends Actor with ActorLogging {
 
   import GameService._
+  import context._
 
   var players: Set[JoinLobby] = Set.empty[JoinLobby]
 
   val rooms: mutable.Map[Long, ActorRef] = mutable.Map.empty[Long, ActorRef]
   var idCounter = 1L
 
+  var current_GameEvent: GameEvent = null
+
   case object IsEmpty
 
+  private var scheduler: Cancellable = _
+
+  private val period = 1 day
 
   override def preStart() {
     log.info("Starting game service")
 
+    scheduler = context.system.scheduler.schedule(period, period, self, UpdateGameEvent)
   }
 
   override def receive = {
@@ -34,22 +45,36 @@ class GameService extends Actor with ActorLogging {
 
     case end: ActorRef => removePlayer(end)
 
+    case event: GameEvent => current_GameEvent = event
+
+    case UpdateGameEvent => updateGameEvent()
+
     case _ => log.info("unknown message")
   }
 
   override def postStop() {
+    scheduler.cancel()
     log.info("Stopping game service")
+  }
+
+  def updateGameEvent() = {
+    val storage = context.actorOf(Props[StorageService])
+    storage ! StorageService.StorageEvent
   }
 
   def addPlayer(task: JoinLobby): Unit = {
 
-    val player = players.find(p=>p.player.id == task.player.id)
-    player match{
+    val player = players.find(p => p.player.id == task.player.id)
+
+    player match {
       case Some(pl) =>
         pl.session = task.session
       case None =>
         log.info("Adding player " + task.player.id + " " + task.player.name)
         players = players + task
+        if (current_GameEvent != null) {
+          task.session ! current_GameEvent.asJson
+        }
     }
     showPlayers()
   }
@@ -87,20 +112,38 @@ class GameService extends Actor with ActorLogging {
   }
 
   def handleJoin(task: JoinGame) = {
-    players.filter(p => p.player.id == task.event.player_id).head.room_id = Some(task.event.room_id)
-    players.filter(p => p.player.id == task.event.player_id).head.room_id = Some(task.event.room_id)
-    rooms.get(task.event.room_id).get ! Room.PlayerInstance(task.session, task.event.player_id, 0)
+
+    val player = players.find(p => p.player.id == task.event.player_id).get
+    player.room_id = Some(task.event.room_id)
+
+    rooms.get(task.event.room_id) match {
+      case Some(room) => room ! Room.PlayerInstance(task.session, player.player)
+      case None =>
+    }
   }
 
   def handleAction(task: TaskEvent) = {
-    rooms.get(task.event.asInstanceOf[GameAction].room_id).get ! TaskEvent(task.session, task.event)
+    task.event.code match {
+      case GameAction.code =>
+        rooms.get(task.event.asInstanceOf[GameAction].room_id) match {
+          case Some(room) => room ! TaskEvent(task.session, task.event)
+          case None =>
+        }
+      case GameOver.code =>
+        rooms.get(task.event.asInstanceOf[GameOver].room_id) match {
+          case Some(room) => room ! TaskEvent(task.session, task.event)
+          case None =>
+        }
+      case _ =>
+    }
+
   }
 
   def removePlayer(end: ActorRef) = {
     val p = players.find(p => p.session == end)
     p match {
       case Some(value) =>
-        if (value.room_id.getOrElse(0) == 0){
+        if (value.room_id.getOrElse(0) == 0) {
           players = players.filter(p => p.session != end)
           showPlayers()
         } else {
@@ -109,13 +152,14 @@ class GameService extends Actor with ActorLogging {
       case None =>
     }
   }
-
 }
 
 object GameService {
 
   case class JoinGame(session: ActorRef, event: EnterRoom)
 
-  case class JoinLobby(var session: ActorRef, player: Player, var room_id:Option[Long])
+  case class JoinLobby(var session: ActorRef, player: Player, var room_id: Option[Long])
+
+  case object UpdateGameEvent
 
 }
