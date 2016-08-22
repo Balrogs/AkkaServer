@@ -4,35 +4,30 @@ import akka.actor._
 import aktor.TaskService.TaskEvent
 import aktor.gm.Room.LostPlayer
 import aktor.storage.StorageService
-import global._
-import global.game.{Player, GameEvent}
-import global.server.{GameOver, GameAction, InviteIntoRoom, EnterRoom}
+import argonaut.Argonaut._
+import global.game.{GameEvent, Player}
+import global.server.{EnterRoom, GameAction, GameOver, InviteIntoRoom}
+
 import scala.collection.mutable
-import argonaut._, Argonaut._
 import scala.concurrent.duration._
 
 class GameService extends Actor with ActorLogging {
 
-  import GameService._
+  import aktor.gm.GameService._
   import context._
 
-  var players: Set[JoinLobby] = Set.empty[JoinLobby]
-
   val rooms: mutable.Map[Long, ActorRef] = mutable.Map.empty[Long, ActorRef]
-  var idCounter = 1L
-
-  var current_GameEvent: GameEvent = null
-
-  case object IsEmpty
-
-  private var scheduler: Cancellable = _
-
   private val period = 1 day
+  var players: Set[JoinLobby] = Set.empty[JoinLobby]
+  var idCounter = 1L
+  var current_GameEvent: GameEvent = null
+  private var scheduler: Cancellable = _
 
   override def preStart() {
     log.info("Starting game service")
 
     scheduler = context.system.scheduler.schedule(period, period, self, UpdateGameEvent)
+    self ! UpdateGameEvent
   }
 
   override def receive = {
@@ -81,7 +76,7 @@ class GameService extends Actor with ActorLogging {
 
   def showPlayers() = {
     log.info("Players: ")
-    players.foreach(p => log.info(p.player.id + " " + p.player.name))
+    players.foreach(p => log.info("id: " +p.player.id + " Name: " + p.player.name))
     managePlayers()
   }
 
@@ -152,6 +147,8 @@ class GameService extends Actor with ActorLogging {
       case None =>
     }
   }
+
+  case object IsEmpty
 }
 
 object GameService {

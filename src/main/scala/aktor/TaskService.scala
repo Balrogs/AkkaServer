@@ -1,14 +1,13 @@
 package aktor
 
-import akka.actor.{Props, ActorRef, Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import aktor.gm.GameService
 import aktor.storage.StorageService
-import global._
 import global.server._
 
 class TaskService extends Actor with ActorLogging {
 
-  import TaskService._
+  import aktor.TaskService._
 
   val gameService = context.actorSelection("/user/game")
 
@@ -18,15 +17,11 @@ class TaskService extends Actor with ActorLogging {
   }
 
   override def receive = {
-    case data : TaskEvent => handlePacket(data)
+    case data: TaskEvent => handlePacket(data)
 
-    case end : ActorRef => gameService ! end
+    case end: ActorRef => gameService ! end
 
     case _ => log.info("unknown message")
-  }
-
-  override def postStop() {
-    log.info("Stoping task service")
   }
 
   // ----- handles -----
@@ -35,12 +30,12 @@ class TaskService extends Actor with ActorLogging {
       case Login.code =>
         log.info("User " + task.event.asInstanceOf[Login].id + " tries to login")
         val storage = context.actorOf(Props[StorageService])
-        storage ! StorageService.StorageLogin(task.session,task.event.asInstanceOf[Login])
+        storage ! StorageService.StorageLogin(task.session, task.event.asInstanceOf[Login])
 
       case RegisterUser.code =>
         log.info("User " + task.event.asInstanceOf[RegisterUser].name + " tries to register")
         val storage = context.actorOf(Props[StorageService])
-        storage ! StorageService.StorageRegister(task.session,task.event.asInstanceOf[RegisterUser])
+        storage ! StorageService.StorageRegister(task.session, task.event.asInstanceOf[RegisterUser])
 
       case GameAction.code =>
         log.info("User tries to apply action")
@@ -53,11 +48,11 @@ class TaskService extends Actor with ActorLogging {
         log.info("User tries to enter the room")
         gameService ! GameService.JoinGame(task.session, task.event.asInstanceOf[EnterRoom])
 
-      case StatsRequest.code =>
+      case UserInfoRequest.code =>
 
-        log.info("User tries to get stats")
+        log.info("User tries to get info")
         val storage = context.actorOf(Props[StorageService])
-        storage ! StorageService.StorageStats(task.session, task.event.asInstanceOf[StatsRequest])
+        storage ! StorageService.StorageStats(task.session, task.event.asInstanceOf[UserInfoRequest])
 
       case AddToFriends.code =>
         log.info("User tries to add friend")
@@ -74,6 +69,10 @@ class TaskService extends Actor with ActorLogging {
       case _ =>
         log.info("Unknown message")
     }
+  }
+
+  override def postStop() {
+    log.info("Stoping task service")
   }
 }
 

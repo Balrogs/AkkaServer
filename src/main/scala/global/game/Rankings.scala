@@ -2,17 +2,19 @@ package global.game
 
 import argonaut.Argonaut._
 import argonaut.EncodeJson
-import global.server.EventMsg
 import reactivemongo.bson.{BSONDocument, BSONDocumentReader, BSONDocumentWriter, Macros}
 
-case class Rankings(rank_name: String, player_id: Long, rank: Int)  {
-val code = 13
+case class Rankings(rank_name: String, player_id: Long, rank: Int) {
+  val code = 11
 }
 
 
 object Rankings {
 
   implicit def rankingsWriter: BSONDocumentWriter[Rankings] = Macros.writer[Rankings]
+
+  implicit def RankingsEncodeJson: EncodeJson[Rankings] =
+    jencode4L((p: Rankings) => (p.rank_name, p.player_id, p.rank, p.code))("rank_name", "player_id", "rank", "code")
 
   implicit object RankingsReader extends BSONDocumentReader[Rankings] {
     def read(doc: BSONDocument): Rankings = {
@@ -22,7 +24,4 @@ object Rankings {
       Rankings(rank_name, player_id, rank)
     }
   }
-
-  implicit def RankingsEncodeJson: EncodeJson[Rankings] =
-    jencode4L((p: Rankings) => (p.rank_name, p.player_id, p.rank, p.code))("rank_name", "player_id", "rank", "code")
 }

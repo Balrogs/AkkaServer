@@ -4,8 +4,7 @@ import akka.actor._
 import aktor.TaskService.TaskEvent
 import aktor.gm.Room.{LostPlayer, PlayerInstance}
 import aktor.storage.StorageService
-import global._
-import argonaut._, Argonaut._
+import argonaut.Argonaut._
 import global.game.Player
 import global.server._
 
@@ -17,20 +16,12 @@ class Room(id: Long) extends Actor with ActorLogging {
 
   import context._
 
-  private var players: Set[PlayerInstance] = Set.empty[PlayerInstance]
-
-  private var isGameStarted = false
-
-  private var actions: mutable.Map[TaskEvent, Boolean] = mutable.Map.empty[TaskEvent, Boolean]
-
-  private var scheduler: Cancellable = _
-
   private val period = 1 seconds
-
+  private var players: Set[PlayerInstance] = Set.empty[PlayerInstance]
+  private var isGameStarted = false
+  private var actions: mutable.Map[TaskEvent, Boolean] = mutable.Map.empty[TaskEvent, Boolean]
+  private var scheduler: Cancellable = _
   private var isPaused = true
-
-  case object Tick
-
 
   override def preStart() {
 
@@ -57,18 +48,12 @@ class Room(id: Long) extends Actor with ActorLogging {
     case _ => log.info("unknown message")
   }
 
-
-  override def postStop() {
-    scheduler.cancel()
-    log.info("Stopping Room " + id)
-  }
-
   def gameOver(task: GameOver): Unit = {
 
-    val rank_diff = Math.abs(players.map(a => a.player.rank).reduce((a,b) => a-b))
+    val rank_diff = Math.abs(players.map(a => a.player.rank).reduce((a, b) => a - b))
 
-    var winner_score: Int = if( rank_diff / 2 < 4) 6 else rank_diff / 2
-    var looser_score: Int = if( rank_diff / 3 < 4) 4 else rank_diff / 3
+    var winner_score: Int = if (rank_diff / 2 < 4) 6 else rank_diff / 2
+    var looser_score: Int = if (rank_diff / 3 < 4) 4 else rank_diff / 3
 
     task.v_type match {
       case 0 =>
@@ -84,7 +69,7 @@ class Room(id: Long) extends Actor with ActorLogging {
       if (p.player.id == task.winner_id)
         p.session ! GameOver(task.winner_id, id, winner_score).asJson
       else {
-        if(p.player.rank - looser_score < 1)
+        if (p.player.rank - looser_score < 1)
           looser_score = p.player.rank - 1
         p.session ! GameOver(task.winner_id, id, looser_score).asJson
       }
@@ -146,14 +131,21 @@ class Room(id: Long) extends Actor with ActorLogging {
     players.foreach(p => p.session ! ServerResp(GamePaused.code).asJson)
   }
 
+  override def postStop() {
+    scheduler.cancel()
+    log.info("Stopping Room " + id)
+  }
+
+  case object Tick
+
 }
 
 object Room {
 
+  def props(id: Long) = Props(new Room(id))
+
   case class PlayerInstance(session: ActorRef, player: Player)
 
   case object LostPlayer
-
-  def props(id: Long) = Props(new Room(id))
 
 }

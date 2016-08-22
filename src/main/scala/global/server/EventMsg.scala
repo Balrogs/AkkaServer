@@ -2,7 +2,7 @@ package global.server
 
 import argonaut.Argonaut._
 import argonaut.{CodecJson, EncodeJson}
-import global.game.Rankings
+import global.game.{CustomPlayerView, Rankings}
 
 sealed trait EventMsg {
   def code: Int
@@ -10,7 +10,7 @@ sealed trait EventMsg {
 
 case class EventType(code: Int) extends EventMsg
 
-case class Login(id: Long, password: String) extends EventMsg {
+case class Login(id: Long, password: String, playerView: CustomPlayerView) extends EventMsg {
   val code = 1
 }
 
@@ -38,23 +38,23 @@ case class GameOver(winner_id: Long, room_id: Long, v_type: Int) extends EventMs
   val code = 7
 }
 
-case class PlayersStats(name: String, rank: Int,  global_rank: Int, country_rank: Int,battles_count: Int, battles_win: Int, battles_loose: Int, date_reg: String) extends EventMsg {
+case class UserInfoRequest(s_type: Int, name: String) extends EventMsg {
   val code = 8
 }
 
-case class StatsRequest(s_type: Int, name: String) extends EventMsg {
+case class UserInfo(name: String, country: Int, playerView: CustomPlayerView, friends: Array[Long],rank: Int, global_rank: Int, country_rank: Int, battles_count: Int, battles_win: Int, battles_loose: Int, date_reg: String) extends EventMsg {
   val code = 9
 }
 
-case class RankingsRequest(name:String, list:Array[Rankings]) extends EventMsg {
+case class RankingsRequest(name: String, list: Array[Rankings]) extends EventMsg {
   val code = 10
 }
 
-case class AddToFriends(id:Long, friend_id:Long, add:Boolean) extends EventMsg {
-  val code = 11
+case class AddToFriends(id: Long, friend_id: Long) extends EventMsg {
+  val code = 14
 }
 
-case class AddEventScore(id:Long, event_id:Long, score:Int) extends EventMsg {
+case class AddEventScore(id: Long, event_id: Long, score: Int) extends EventMsg {
   val code = 12
 }
 
@@ -68,7 +68,7 @@ object Login {
   val code = 1
 
   implicit def LoginCodecJson: CodecJson[Login] =
-    casecodec2(Login.apply, Login.unapply)("id", "password")
+    casecodec3(Login.apply, Login.unapply)("id", "password", "playerView")
 
 }
 
@@ -123,38 +123,47 @@ object GameOver {
     jencode4L((p: GameOver) => (p.winner_id, p.room_id, p.v_type, p.code))("winner_id", "room_id", "v_type", "code")
 }
 
-object PlayersStats {
+object UserInfoRequest {
   val code = 8
 
-  implicit def PlayersStatsEncodeJson: EncodeJson[PlayersStats] =
-    jencode9L((p: PlayersStats) => (p.name, p.rank, p.global_rank, p.country_rank, p.battles_count, p.battles_win, p.battles_loose, p.date_reg, p.code))("name", "rank","global_rank","country_rank", "battles_count", "battles_win", "battles_loose", "date_reg", "code")
+  implicit def UserInfoRequestCodecJson: CodecJson[UserInfoRequest] =
+
+    casecodec2(UserInfoRequest.apply, UserInfoRequest.unapply)("s_type", "name")
+
 }
 
-object StatsRequest {
+object UserInfo {
   val code = 9
 
-  implicit def StatsRequestCodecJson: CodecJson[StatsRequest] =
-    casecodec2(StatsRequest.apply, StatsRequest.unapply)("s_type","name")
+  implicit def PrivateUserInfoEncodeJson: EncodeJson[UserInfo] =
+    jencode12L((p: UserInfo) => (p.name, p.country, p.playerView,p.friends,  p.rank, p.global_rank, p.country_rank, p.battles_count, p.battles_win, p.battles_loose, p.date_reg, p.code))("name", "country", "playerView", "friends", "rank", "global_rank", "country_rank", "battles_count", "battles_win", "battles_loose", "date_reg", "code")
+
+
+
+  implicit def PublicUserInfoEncodeJson: EncodeJson[UserInfo] =
+    jencode11L((p: UserInfo) => (p.name, p.country, p.playerView, p.rank, p.global_rank, p.country_rank, p.battles_count, p.battles_win, p.battles_loose, p.date_reg, p.code))("name", "country", "playerView", "rank", "global_rank", "country_rank", "battles_count", "battles_win", "battles_loose", "date_reg", "code")
+
+
 }
 
 object RankingsRequest {
   val code = 10
 
   implicit def RankingsRequestEncodeJson: EncodeJson[RankingsRequest] =
-    jencode3L((p: RankingsRequest) => (p.name, p.list, p.code))("name", "list","code")
+    jencode3L((p: RankingsRequest) => (p.name, p.list, p.code))("name", "list", "code")
 }
 
 object AddToFriends {
-  val code = 11
+  val code = 14
 
   implicit def AddToFriendsCodecJson: CodecJson[AddToFriends] =
-    casecodec3(AddToFriends.apply, AddToFriends.unapply)("id","friend_id", "add")
+    casecodec2(AddToFriends.apply, AddToFriends.unapply)("id", "friend_id")
 }
 
 object AddEventScore {
   val code = 12
 
   implicit def AddEventScoreCodecJson: CodecJson[AddEventScore] =
-    casecodec3(AddEventScore.apply, AddEventScore.unapply)("id","event_id", "score")
+    casecodec3(AddEventScore.apply, AddEventScore.unapply)("id", "event_id", "score")
 
 }
