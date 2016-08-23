@@ -26,19 +26,21 @@ class TaskService extends Actor with ActorLogging {
 
   // ----- handles -----
   def handlePacket(task: TaskEvent) = {
+
+    val storage = context.actorOf(Props[StorageService])
+
     task.event.code match {
       case Login.code =>
         log.info("User " + task.event.asInstanceOf[Login].id + " tries to login")
-        val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageLogin(task.session, task.event.asInstanceOf[Login])
 
       case RegisterUser.code =>
         log.info("User " + task.event.asInstanceOf[RegisterUser].name + " tries to register")
-        val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageRegister(task.session, task.event.asInstanceOf[RegisterUser])
 
       case GameAction.code =>
         log.info("User tries to apply action")
+
         gameService ! task
 
       case GameOver.code =>
@@ -51,18 +53,15 @@ class TaskService extends Actor with ActorLogging {
       case UserInfoRequest.code =>
 
         log.info("User tries to get info")
-        val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageStats(task.session, task.event.asInstanceOf[UserInfoRequest])
 
       case AddToFriends.code =>
         log.info("User tries to add friend")
-        val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageAddFriends(task.session, task.event.asInstanceOf[AddToFriends])
 
 
       case AddEventScore.code =>
         log.info("User tries to add event score")
-        val storage = context.actorOf(Props[StorageService])
         storage ! StorageService.StorageAddEventScore(task.session, task.event.asInstanceOf[AddEventScore])
 
 

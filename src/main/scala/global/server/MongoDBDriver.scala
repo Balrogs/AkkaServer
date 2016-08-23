@@ -5,7 +5,6 @@ import java.time.LocalDateTime
 import global.game._
 import reactivemongo.api.{DefaultDB, MongoConnection}
 import reactivemongo.bson._
-
 import scala.concurrent.Future
 
 object MongoDBDriver {
@@ -35,6 +34,8 @@ object MongoDBDriver {
   def createRankings(rankings: Rankings): Future[Unit] = rankingsCollection.flatMap(_.insert(rankings).map(_ => {}))
 
   def createAward(award: Award): Future[Unit] = awardsCollection.flatMap(_.insert(award).map(_ => {}))
+
+  def createToken(token: AccessToken): Future[Unit] = tokensCollection.flatMap(_.insert(token).map(_ => {}))
 
   def updatePlayer(player: Player): Future[Int] = {
     val selector = document(
@@ -78,6 +79,16 @@ object MongoDBDriver {
   }
 
   def awardsCollection = db.map(_.collection("awards"))
+
+  def updateToken(token: AccessToken): Future[Int] = {
+    val selector = document(
+      "id" -> token.id
+    )
+    tokensCollection.flatMap(_.update(selector, token).map(_.n))
+  }
+
+  def tokensCollection = db.map(_.collection("tokens"))
+
 
   def getLastId(id: Long): Future[Int] = {
     id match {
@@ -139,5 +150,17 @@ object MongoDBDriver {
     val query = BSONDocument("player_id" -> player_id, "received" -> false)
 
     awardsCollection.flatMap(_.find(query).cursor[Award]().collect[Array]())
+  }
+
+  def findTokenById(id: Long): Future[Option[AccessToken]] = {
+    val query = BSONDocument("id" -> id)
+
+    tokensCollection.flatMap(_.find(query).one[AccessToken])
+  }
+
+  def findToken(token: String): Future[Option[AccessToken]] = {
+    val query = BSONDocument("token" -> token)
+
+    tokensCollection.flatMap(_.find(query).one[AccessToken])
   }
 }

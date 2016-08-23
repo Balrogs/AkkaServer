@@ -41,7 +41,7 @@ class Room(id: Long) extends Actor with ActorLogging {
       case GameOver.code => gameOver(task.event.asInstanceOf[GameOver])
 
     }
-    case Tick => tickAction
+    case Tick => tickAction()
 
     case LostPlayer => waitForPlayer()
 
@@ -67,11 +67,11 @@ class Room(id: Long) extends Actor with ActorLogging {
 
     players.foreach(p =>
       if (p.player.id == task.winner_id)
-        p.session ! GameOver(task.winner_id, id, winner_score).asJson
+        p.session ! GameOver(task.winner_id, id, winner_score, AccessToken(-1,"server")).asJson
       else {
         if (p.player.rank - looser_score < 1)
           looser_score = p.player.rank - 1
-        p.session ! GameOver(task.winner_id, id, looser_score).asJson
+        p.session ! GameOver(task.winner_id, id, looser_score, AccessToken(-1,"server")).asJson
       }
     )
 
@@ -119,7 +119,7 @@ class Room(id: Long) extends Actor with ActorLogging {
     if (!isPaused) {
       actions = actions.filter(a => !a._2).map(a => {
         log.info("Action sent: " + a._1.event.asInstanceOf[GameAction])
-        players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAction].asJson
+        players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAction].asJson(GameAction.GameActionEncodeJson)
         (a._1, true)
       })
     }

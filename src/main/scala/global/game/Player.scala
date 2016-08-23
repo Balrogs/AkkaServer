@@ -28,25 +28,26 @@ object Color{
 
 
 
-case class CustomPlayerView(color:Color, helmet:Int, hood:Int)
+case class CustomPlayerView(color:Color, helmet:Int, hood:Int, bow:Int)
 
 object CustomPlayerView{
   implicit def customPlayerViewriter: BSONDocumentWriter[CustomPlayerView] = Macros.writer[CustomPlayerView]
 
   implicit def customPlayerViewEncodeJson: EncodeJson[CustomPlayerView] =
-    jencode3L((p: CustomPlayerView) => (p.color, p.helmet, p.hood))("color", "helmet", "hood")
+    jencode4L((p: CustomPlayerView) => (p.color, p.helmet, p.hood, p.bow))("color", "helmet", "hood", "bow")
 
   implicit object customPlayerViewReader extends BSONDocumentReader[CustomPlayerView] {
     def read(doc: BSONDocument): CustomPlayerView = {
       val color = doc.getAs[Color]("color").get
       val helmet = doc.getAs[Int]("helmet").get
       val hood = doc.getAs[Int]("hood").get
-      CustomPlayerView(color, helmet, hood)
+      val bow = doc.getAs[Int]("bow").get
+      CustomPlayerView(color, helmet, hood, bow)
     }
   }
 
   implicit def customPlayerViewCodecJson: CodecJson[CustomPlayerView] =
-    casecodec3(CustomPlayerView.apply, CustomPlayerView.unapply)("color", "helmet", "hood")
+    casecodec4(CustomPlayerView.apply, CustomPlayerView.unapply)("color", "helmet", "hood", "bow")
 
 }
 

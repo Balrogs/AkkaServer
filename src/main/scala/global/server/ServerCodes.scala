@@ -1,39 +1,39 @@
 package global.server
 
 trait ServerCodes {
-  def code: Long
+  def code: String
 }
 
-case class AuthResp(code: Long) extends ServerCodes
+case class AuthResp(code: String) extends ServerCodes
 
 case object LoginError extends ServerCodes {
-  val code = -100l
+  val code = "-100"
 }
 
 case object RegisterErrorNameExists extends ServerCodes {
-  val code = -201l
+  val code = "-201"
 }
 
 case object GameStarted extends ServerCodes {
-  val code = -301l
+  val code = "-301"
 }
 
 case object GamePaused extends ServerCodes {
-  val code = -302l
+  val code = "-302"
 }
 
 case object GameResumed extends ServerCodes {
-  val code = -303l
+  val code = "-303"
 }
 
 case object ServerConnectionError extends ServerCodes {
-  val code = -400l
+  val code = "-400"
 }
 
 case object UserEnteredRoom extends ServerCodes {
-  val code = -500l
+  val code = "-500"
 }
 
 case object UserNotFound extends ServerCodes {
-  val code = -600l
+  val code = "-600"
 }

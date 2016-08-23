@@ -6,7 +6,7 @@ import aktor.gm.Room.LostPlayer
 import aktor.storage.StorageService
 import argonaut.Argonaut._
 import global.game.{GameEvent, Player}
-import global.server.{EnterRoom, GameAction, GameOver, InviteIntoRoom}
+import global.server._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -85,8 +85,8 @@ class GameService extends Actor with ActorLogging {
       players.foreach(p2 => {
         if (p != p2 && p.room_id.getOrElse(0) == 0 && p2.room_id.getOrElse(0) == 0 && p2.player.rank + 100 > p.player.rank && p2.player.rank - 100 < p.player.rank) {
           val room_id = createRoom()
-          p.session ! InviteIntoRoom(p2.player.name, p2.player.rank, room_id).asJson
-          p2.session ! InviteIntoRoom(p.player.name, p.player.rank, room_id).asJson
+          p.session ! InviteIntoRoom(p2.player.name, p2.player.rank, room_id, AccessToken(-1,"server")).asJson
+          p2.session ! InviteIntoRoom(p.player.name, p.player.rank, room_id, AccessToken(-1,"server")).asJson
           return
         }
       })

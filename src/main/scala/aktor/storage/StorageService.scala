@@ -3,6 +3,7 @@ package aktor.storage
 import java.time.LocalDateTime
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
+import aktor.TaskService.TaskEvent
 import aktor.gm.GameService.JoinLobby
 import argonaut.Argonaut._
 import global.game._
@@ -12,12 +13,16 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import scala.util.Random
 
 class StorageService extends Actor with ActorLogging {
 
   import aktor.storage.StorageService._
 
+  val timeout = 1 seconds
+
   val gameService = context.actorSelection("/user/game")
+  val taskService = context.actorSelection("/user/task")
 
   override def preStart() {
     log.info("Starting storage service")
@@ -42,9 +47,14 @@ class StorageService extends Actor with ActorLogging {
 
     case task: StorageAddFriends =>
       addToFriends(task)
+      context stop self
 
     case task: StorageAddEventScore =>
       addEventScore(task)
+      context stop self
+
+    case token: StorageAccessToken =>
+      checkToken(token)
       context stop self
 
     case StorageEvent =>
@@ -70,7 +80,10 @@ class StorageService extends Actor with ActorLogging {
             pl.friends_list,
             task.event.playerView
           ))
-          task.session ! ServerResp(AuthResp(pl.id).code).asJson
+          val token = generateAccessToken()
+          val accessToken = AccessToken(pl.id, token)
+          MongoDBDriver.updateToken(accessToken)
+          task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
           sendPlayerAward(task.session, pl)
           gameService ! JoinLobby(task.session, pl, None)
         case None =>
@@ -108,9 +121,12 @@ class StorageService extends Actor with ActorLogging {
                 1,
                 task.event.country,
                 Array.empty[Long],
-                CustomPlayerView(Color(0, 0, 0), 0, 0)
+                CustomPlayerView(Color(0, 0, 0), 0, 0, 0)
               )) onSuccess {
-                case _ => task.session ! ServerResp(AuthResp(id).code).asJson
+                case _ =>
+                  val accessToken = AccessToken(id, generateAccessToken())
+                  MongoDBDriver.createToken(accessToken)
+                  task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
               }
           }
       }
@@ -208,13 +224,13 @@ class StorageService extends Actor with ActorLogging {
                   b.winner_id == stats.id
                 })
 
-                val global_rankings = Await.result(MongoDBDriver.findRankingsByName("global"), 100 milliseconds).map(e => (e.player_id, e.rank))
+                val global_rankings = Await.result(MongoDBDriver.findRankingsByName("global"), timeout).map(e => (e.player_id, e.rank))
 
                 val player_global_rank = global_rankings.find(p => p._1 == player.id).get._2
 
                 val global_rank = global_rankings.count(rank => rank._2 > player_global_rank)
 
-                val country_rankings = Await.result(MongoDBDriver.findRankingsByName("country-" + player.country), 100 milliseconds).map(e => (e.player_id, e.rank))
+                val country_rankings = Await.result(MongoDBDriver.findRankingsByName("country-" + player.country), timeout).map(e => (e.player_id, e.rank))
 
                 val player_country_rank = country_rankings.find(p => p._1 == player.id).get._2
 
@@ -256,8 +272,8 @@ class StorageService extends Actor with ActorLogging {
     MongoDBDriver.findEventById(event_id) onSuccess {
       case e => e match {
         case Some(event) =>
-          val players_map = Await.result(MongoDBDriver.findRankingsByName("event-" + event_id), 100 milliseconds).map(rankings => (rankings.player_id, rankings.rank))
-          var last_award_id = Await.result(MongoDBDriver.getLastId(2), 100 milliseconds)
+          val players_map = Await.result(MongoDBDriver.findRankingsByName("event-" + event_id), timeout).map(rankings => (rankings.player_id, rankings.rank))
+          var last_award_id = Await.result(MongoDBDriver.getLastId(2), timeout)
           players_map.foreach(player => {
             val player_rank = players_map.count(rank => rank._2 > player._2)
             player_rank match {
@@ -278,7 +294,7 @@ class StorageService extends Actor with ActorLogging {
             last_award_id += 1
 
           })
-          MongoDBDriver.updateGameEvent(GameEvent(event.id,event.name,event.date_begin,event.date_end,event.description, isAwardsSet = true))
+          MongoDBDriver.updateGameEvent(GameEvent(event.id, event.name, event.date_begin, event.date_end, event.description, isAwardsSet = true))
         case None =>
       }
     }
@@ -305,21 +321,44 @@ class StorageService extends Actor with ActorLogging {
   }
 
   def addEventScore(task: StorageAddEventScore): Unit = {
-    val rankings = Await.result(MongoDBDriver.findPlayerRankings(task.event.id, "event-" + task.event.event_id), 100 milliseconds)
-    val new_rankings = Rankings("event-" + task.event.event_id, task.event.id, task.event.score)
-    rankings.size match {
+    val event_name = "event-" + task.event.event_id
+    val rankings = Await.result(MongoDBDriver.findPlayerRankings(task.event.id, event_name), timeout)
+    val new_rankings = Rankings(event_name, task.event.id, task.event.score)
+    Await.result(rankings.size match {
       case 1 =>
         MongoDBDriver.updateRankings(new_rankings)
       case 0 =>
         MongoDBDriver.createRankings(new_rankings)
+    }, timeout)
+    task.session ! returnStats(StorageStats(task.session, UserInfoRequest(2, event_name)))
+  }
+
+  def checkToken(token: StorageAccessToken): Unit = {
+    MongoDBDriver.findTokenById(token.token.id) onSuccess {
+      case tok => tok match {
+        case Some(t) =>
+          if (t.token == token.token.token) {
+            taskService ! token.event
+          }
+        case _ =>
+      }
     }
   }
 
-  override def postStop() {
+    def generateAccessToken(): String = {
+      val token = Random.nextString(20)
+      val isExist = Await.result(MongoDBDriver.findToken(token), timeout)
+      isExist match {
+        case Some(t) => generateAccessToken()
+        case None => token
+      }
+    }
 
-    log.info("Stopping storage service")
+    override def postStop(){
 
-  }
+      log.info("Stopping storage service")
+
+    }
 
 }
 
@@ -336,6 +375,8 @@ object StorageService {
   case class StorageAddFriends(session: ActorRef, event: AddToFriends)
 
   case class StorageAddEventScore(session: ActorRef, event: AddEventScore)
+
+  case class StorageAccessToken(event: TaskEvent, token: AccessToken)
 
   case object StorageEvent
 
