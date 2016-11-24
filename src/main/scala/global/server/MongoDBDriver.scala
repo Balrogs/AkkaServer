@@ -14,8 +14,9 @@ object MongoDBDriver {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  // use any appropriate context
-  private val mongoUri = "mongodb://127.0.0.1:27017/arcunlimdb"
+  private var mongoUri = ""
+
+  def setHost(host : String) = { mongoUri = "mongodb://" + host +":27017/arcunlimdb" }
 
   val parsedUri = MongoConnection.parseURI(mongoUri)
   val connection = parsedUri.map(driver.connection)

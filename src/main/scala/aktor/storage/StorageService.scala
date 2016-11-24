@@ -107,7 +107,8 @@ class StorageService extends Actor with ActorLogging {
 
   def registerUser(task: StorageRegister): Unit = {
 
-    MongoDBDriver.playerInfoByName(task.event.name) onSuccess {
+    val reg = MongoDBDriver.playerInfoByName(task.event.name)
+    reg onSuccess {
       case pl => pl match {
         case Some(player) =>
           task.session ! ServerResp(RegisterErrorNameExists.code).asJson
@@ -130,6 +131,9 @@ class StorageService extends Actor with ActorLogging {
               }
           }
       }
+    }
+    reg onFailure {
+      case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
     }
   }
 
