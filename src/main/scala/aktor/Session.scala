@@ -68,9 +68,13 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
       case Some(EventType(9)) =>
         taskService ! TaskService.TaskEvent(self, message.decodeOption[UserInfoRequest].get)
       case Some(_) =>
-        log.info("Unknown message: {}", message)
       case None =>
-        log.info("Unknown message: {}", message)
+        if(message.contains("GET")){
+          log.info("GET message: {}", message)
+          connection ! Write(ByteString("This is Archers Unlimited GameServer! Hello, Billy!"))
+        } else {
+          log.info("Unknown message: {}", message)
+        }
     }
   }
 
