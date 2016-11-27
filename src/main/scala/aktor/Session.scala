@@ -39,7 +39,17 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
   }
 
   def Parse(string: ByteString): Unit = {
-    val message = string.utf8String.trim
+    var message = string.utf8String.trim
+    var id = message.indexOf("}{")
+    while (id > 0) {
+      parseSingleMessage(message.substring(0, id + 1))
+      message = message.substring(id + 1)
+      id = message.indexOf("}{")
+    }
+    parseSingleMessage(message)
+  }
+
+  def parseSingleMessage(message: String): Unit = {
 
     log.info("Received: " + message)
 
@@ -47,11 +57,11 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
 
     val event_token = message.decodeOption[EventToken]
 
-    event_token match{
+    event_token match {
       case Some(token) =>
         sendToStorageService(message, event_type, token.token)
       case _ =>
-        sendToTaskService(message,event_type)
+        sendToTaskService(message, event_type)
     }
   }
 
@@ -59,7 +69,7 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
     log.info("Session stop: {}", toString)
   }
 
-  def sendToTaskService(message:String, event_type:Option[EventType]): Unit ={
+  def sendToTaskService(message: String, event_type: Option[EventType]): Unit = {
     event_type match {
       case Some(EventType(1)) =>
         taskService ! TaskService.TaskEvent(self, message.decodeOption[Login].get)
@@ -69,7 +79,7 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
         taskService ! TaskService.TaskEvent(self, message.decodeOption[UserInfoRequest].get)
       case Some(_) =>
       case None =>
-        if(message.contains("GET")){
+        if (message.contains("GET")) {
           log.info("GET message: {}", message)
           connection ! Write(ByteString("This is Archers Unlimited GameServer! Hello, Billy!"))
         } else {
@@ -78,21 +88,21 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
     }
   }
 
-  def sendToStorageService(message:String, event_type:Option[EventType], token:AccessToken): Unit ={
+  def sendToStorageService(message: String, event_type: Option[EventType], token: AccessToken): Unit = {
     val storage = context.actorOf(Props[StorageService])
     event_type match {
       case Some(EventType(4)) =>
-        storage  ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[EnterRoom].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[EnterRoom].get), token)
       case Some(EventType(6)) =>
-        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameAction].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameAction].get), token)
       case Some(EventType(5)) =>
-        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[InviteIntoRoom].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[InviteIntoRoom].get), token)
       case Some(EventType(7)) =>
-        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameOver].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameOver].get), token)
       case Some(EventType(11)) =>
-        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddToFriends].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddToFriends].get), token)
       case Some(EventType(12)) =>
-        storage !  StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddEventScore].get),token)
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddEventScore].get), token)
       case Some(_) =>
         log.info("Unknown message: {}", message)
       case None =>

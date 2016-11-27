@@ -113,7 +113,8 @@ class StorageService extends Actor with ActorLogging {
         case Some(player) =>
           task.session ! ServerResp(RegisterErrorNameExists.code).asJson
         case None =>
-          MongoDBDriver.getLastId(1) onSuccess {
+          val idRequest = MongoDBDriver.getLastId(1)
+          idRequest onSuccess {
             case id =>
               MongoDBDriver.createPlayer(Player(
                 id,
@@ -123,14 +124,17 @@ class StorageService extends Actor with ActorLogging {
                 task.event.country,
                 Array.empty[Long],
                 CustomPlayerView(Color(0, 0, 0), 0, 0, 0)
-              )) onSuccess {
-                case _ =>
-                  val accessToken = AccessToken(id, generateAccessToken())
-                  MongoDBDriver.createToken(accessToken)
-                  task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
-              }
+              ))
+
+              val accessToken = AccessToken(id, generateAccessToken())
+              MongoDBDriver.createToken(accessToken)
+              task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
+          }
+          idRequest onFailure {
+            case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
           }
       }
+      case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
     }
     reg onFailure {
       case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
@@ -349,20 +353,20 @@ class StorageService extends Actor with ActorLogging {
     }
   }
 
-    def generateAccessToken(): String = {
-      val token = Random.nextString(20)
-      val isExist = Await.result(MongoDBDriver.findToken(token), timeout)
-      isExist match {
-        case Some(t) => generateAccessToken()
-        case None => token
-      }
+  def generateAccessToken(): String = {
+    val token = Random.nextString(20)
+    val isExist = Await.result(MongoDBDriver.findToken(token), timeout)
+    isExist match {
+      case Some(t) => generateAccessToken()
+      case None => token
     }
+  }
 
-    override def postStop(){
+  override def postStop() {
 
-      log.info("Stopping storage service")
+    log.info("Stopping storage service")
 
-    }
+  }
 
 }
 
