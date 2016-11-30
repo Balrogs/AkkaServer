@@ -2,7 +2,7 @@ package aktor.gm
 
 import akka.actor._
 import aktor.TaskService.TaskEvent
-import aktor.gm.Room.{LostPlayer, PlayerInstance}
+import aktor.gm.Room.{Abort, LostPlayer, PlayerInstance}
 import aktor.storage.StorageService
 import argonaut.Argonaut._
 import global.game.Player
@@ -41,6 +41,8 @@ class Room(id: Long) extends Actor with ActorLogging {
       case GameOver.code => gameOver(task.event.asInstanceOf[GameOver])
 
     }
+    case Abort => abortGame()
+
     case Tick => tickAction()
 
     case LostPlayer => waitForPlayer()
@@ -86,11 +88,20 @@ class Room(id: Long) extends Actor with ActorLogging {
     context stop self
   }
 
+  def abortGame(): Unit = {
+
+    players.foreach(p =>
+        p.session ! ServerResp(GameAborted.code).asJson
+    )
+
+    context stop self
+  }
+
   def addPlayer(player: PlayerInstance): Unit = {
     players = players.filter(p => p.player.id != player.player.id)
     if (players.size < 2) {
       players = players + player
-      player.session ! ServerResp(UserEnteredRoom.code).asJson
+      player.session ! ServerResp((-500 - players.size).toString).asJson
     }
     log.info("Players in room " + id + " : ")
     players.foreach(p => log.info(p.player.id.toString))
@@ -145,6 +156,8 @@ object Room {
   def props(id: Long) = Props(new Room(id))
 
   case class PlayerInstance(session: ActorRef, player: Player)
+
+  case object Abort
 
   case object LostPlayer
 

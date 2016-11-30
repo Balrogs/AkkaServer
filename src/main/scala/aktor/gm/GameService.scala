@@ -16,7 +16,7 @@ class GameService extends Actor with ActorLogging {
   import aktor.gm.GameService._
   import context._
 
-  val rooms: mutable.Map[Long, ActorRef] = mutable.Map.empty[Long, ActorRef]
+  var rooms: mutable.Map[Long, ActorRef] = mutable.Map.empty[Long, ActorRef]
   private val period = 1 day
   var players: Set[JoinLobby] = Set.empty[JoinLobby]
   var idCounter = 1L
@@ -35,6 +35,8 @@ class GameService extends Actor with ActorLogging {
     case task: JoinLobby => addPlayer(task)
 
     case task: JoinGame => handleJoin(task)
+
+    case task: DenyGame => removeRoom(task)
 
     case task: TaskEvent => handleAction(task)
 
@@ -61,9 +63,12 @@ class GameService extends Actor with ActorLogging {
 
     val player = players.find(p => p.player.id == task.player.id)
 
+    log.info(player.toString)
+
     player match {
       case Some(pl) =>
         pl.session = task.session
+
       case None =>
         log.info("Adding player " + task.player.id + " " + task.player.name)
         players = players + task
@@ -76,7 +81,7 @@ class GameService extends Actor with ActorLogging {
 
   def showPlayers() = {
     log.info("Players: ")
-    players.foreach(p => log.info("id: " +p.player.id + " Name: " + p.player.name))
+    players.foreach(p => log.info("id: " + p.player.id + " Name: " + p.player.name))
     managePlayers()
   }
 
@@ -85,8 +90,8 @@ class GameService extends Actor with ActorLogging {
       players.foreach(p2 => {
         if (p != p2 && p.room_id.getOrElse(0) == 0 && p2.room_id.getOrElse(0) == 0 && p2.player.rank + 100 > p.player.rank && p2.player.rank - 100 < p.player.rank) {
           val room_id = createRoom()
-          p.session ! InviteIntoRoom(p2.player.name, p2.player.rank, room_id, AccessToken(-1,"server")).asJson
-          p2.session ! InviteIntoRoom(p.player.name, p.player.rank, room_id, AccessToken(-1,"server")).asJson
+          p.session ! InviteIntoRoom(p2.player.id, p2.player.name, p2.player.rank, room_id, AccessToken(-1, "server")).asJson
+          p2.session ! InviteIntoRoom(p.player.id, p.player.name, p.player.rank, room_id, AccessToken(-1, "server")).asJson
           return
         }
       })
@@ -109,10 +114,25 @@ class GameService extends Actor with ActorLogging {
   def handleJoin(task: JoinGame) = {
 
     val player = players.find(p => p.player.id == task.event.player_id).get
+
+    rooms.get(task.event.room_id) match {
+      case Some(room) =>
+        player.room_id = Some(task.event.room_id)
+        room ! Room.PlayerInstance(task.session, player.player)
+      case None => player.session ! ServerResp(GameAborted.code).asJson
+    }
+  }
+
+  def removeRoom(task: DenyGame) = {
+
+    val player = players.find(p => p.player.id == task.event.player_id).get
     player.room_id = Some(task.event.room_id)
 
     rooms.get(task.event.room_id) match {
-      case Some(room) => room ! Room.PlayerInstance(task.session, player.player)
+      case Some(room) =>
+        rooms.remove(task.event.room_id)
+        player.room_id = None
+        room ! Room.Abort
       case None =>
     }
   }
@@ -138,20 +158,22 @@ class GameService extends Actor with ActorLogging {
     val p = players.find(p => p.session == end)
     p match {
       case Some(value) =>
-        if (value.room_id.getOrElse(0) == 0) {
-          players = players.filter(p => p.session != end)
-          showPlayers()
-        } else {
+        players = players.filter(pl => pl.session != end)
+        if (value.room_id.getOrElse(0) != 0) {
           rooms.get(value.room_id.get).get ! LostPlayer
         }
+        showPlayers()
       case None =>
     }
   }
 
   case object IsEmpty
+
 }
 
 object GameService {
+
+  case class DenyGame(session: ActorRef, event: DenyInvite)
 
   case class JoinGame(session: ActorRef, event: EnterRoom)
 

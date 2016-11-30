@@ -2,6 +2,7 @@ package aktor
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import aktor.gm.GameService
+import aktor.gm.GameService.JoinLobby
 import aktor.storage.StorageService
 import global.server._
 
@@ -46,9 +47,16 @@ class TaskService extends Actor with ActorLogging {
       case GameOver.code =>
         gameService ! task
 
+      case EnterLobby.code =>
+        log.info("User tries to enter the lobby")
+        storage ! task.event.asInstanceOf[EnterLobby]
+
       case EnterRoom.code =>
         log.info("User tries to enter the room")
         gameService ! GameService.JoinGame(task.session, task.event.asInstanceOf[EnterRoom])
+
+      case DenyInvite.code =>
+        gameService ! GameService.DenyGame(task.session, task.event.asInstanceOf[DenyInvite])
 
       case UserInfoRequest.code =>
 

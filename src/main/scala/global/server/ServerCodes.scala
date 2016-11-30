@@ -26,6 +26,10 @@ case object GameResumed extends ServerCodes {
   val code = "-303"
 }
 
+case object GameAborted extends ServerCodes {
+  val code = "-304"
+}
+
 case object ServerConnectionError extends ServerCodes {
   val code = "-400"
 }

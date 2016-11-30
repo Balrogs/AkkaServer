@@ -33,7 +33,15 @@ case class EnterRoom(player_id: Long, room_id: Long, token:AccessToken) extends 
   val code = 4
 }
 
-case class InviteIntoRoom(player_name: String, player_rank: Int, room_id: Long, token:AccessToken) extends EventMsg  with EventMsgSecured  {
+case class EnterLobby(player_id: Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+  val code = 40
+}
+
+case class DenyInvite(player_id: Long, room_id: Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+  val code = 41
+}
+
+case class InviteIntoRoom(player_id: Long, player_name: String, player_rank: Int, room_id: Long, token:AccessToken) extends EventMsg  with EventMsgSecured  {
   val code = 5
 }
 
@@ -105,14 +113,28 @@ object EnterRoom {
     casecodec3(EnterRoom.apply, EnterRoom.unapply)("player_id", "room_id", "token")
 }
 
+object EnterLobby {
+  val code = 40
+
+  implicit def EnterLobbyCodecJson: CodecJson[EnterLobby] =
+    casecodec2(EnterLobby.apply, EnterLobby.unapply)("player_id","token")
+}
+
+object DenyInvite {
+  val code = 41
+
+  implicit def DenyInviteCodecJson: CodecJson[DenyInvite] =
+    casecodec3(DenyInvite.apply, DenyInvite.unapply)("player_id", "room_id", "token")
+}
+
 object InviteIntoRoom {
   val code = 5
 
   implicit def InviteIntoRoomCodecJson: CodecJson[InviteIntoRoom] =
-    casecodec4(InviteIntoRoom.apply, InviteIntoRoom.unapply)("player_name", "player_rank", "room_id", "token")
+    casecodec5(InviteIntoRoom.apply, InviteIntoRoom.unapply)("player_id", "player_name", "player_rank", "room_id", "token")
 
   implicit def InviteIntoRoomEncodeJson: EncodeJson[InviteIntoRoom] =
-    jencode4L((p: InviteIntoRoom) => (p.player_name, p.player_rank, p.room_id, p.code))("player_name", "player_rank", "room_id", "code")
+    jencode5L((p: InviteIntoRoom) => (p.player_id, p.player_name, p.player_rank, p.room_id, p.code))("player_id","player_name", "player_rank", "room_id", "code")
 }
 
 object GameAction {

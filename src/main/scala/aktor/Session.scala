@@ -93,6 +93,10 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
     event_type match {
       case Some(EventType(4)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[EnterRoom].get), token)
+      case Some(EventType(40)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[EnterLobby].get), token)
+      case Some(EventType(41)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[DenyInvite].get), token)
       case Some(EventType(6)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameAction].get), token)
       case Some(EventType(5)) =>

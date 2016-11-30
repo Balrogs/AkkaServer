@@ -57,6 +57,10 @@ class StorageService extends Actor with ActorLogging {
       checkToken(token)
       context stop self
 
+    case task: StorageJoinLobby =>
+      joinLobby(task)
+      context stop self
+
     case StorageEvent =>
       updateEvent()
       context stop self
@@ -85,6 +89,22 @@ class StorageService extends Actor with ActorLogging {
           MongoDBDriver.updateToken(accessToken)
           task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
           sendPlayerAward(task.session, pl)
+        case None =>
+          task.session ! ServerResp(LoginError.code).asJson
+      }
+    }
+    player onFailure {
+      case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
+    }
+
+  }
+
+  def joinLobby(task: StorageJoinLobby) = {
+    val player = MongoDBDriver.playerInfo(task.event.player_id)
+    player onSuccess {
+      case p => p match {
+        case Some(pl) =>
+          task.session ! ServerResp(.asJson
           gameService ! JoinLobby(task.session, pl, None)
         case None =>
           task.session ! ServerResp(LoginError.code).asJson
@@ -373,6 +393,8 @@ class StorageService extends Actor with ActorLogging {
 object StorageService {
 
   case class StorageLogin(session: ActorRef, event: Login)
+
+  case class StorageJoinLobby(session: ActorRef, event: EnterLobby)
 
   case class StorageRegister(session: ActorRef, event: RegisterUser)
 
