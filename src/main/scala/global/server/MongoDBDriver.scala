@@ -113,8 +113,8 @@ object MongoDBDriver {
     playerCollection.flatMap(_.find(query).one[Player])
   }
 
-  def AuthPlayer(id: Long, pass: String): Future[Option[Player]] = {
-    val query = BSONDocument("id" -> id, "password" -> pass)
+  def AuthPlayer(name: String, pass: String): Future[Option[Player]] = {
+    val query = BSONDocument("name" -> name, "password" -> pass)
     playerCollection.flatMap(_.find(query).one[Player])
   }
 

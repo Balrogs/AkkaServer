@@ -41,3 +41,7 @@ case object UserEnteredRoom extends ServerCodes {
 case object UserNotFound extends ServerCodes {
   val code = "-600"
 }
+
+case object UserEnteredLobby extends ServerCodes {
+  val code = "-700"
+}

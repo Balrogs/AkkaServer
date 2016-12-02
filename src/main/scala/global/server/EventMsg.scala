@@ -17,7 +17,7 @@ case class EventType(code: Int) extends EventMsg
 
 case class EventToken(token: AccessToken) extends EventMsgSecured
 
-case class Login(id: Long, password: String, playerView: CustomPlayerView) extends EventMsg {
+case class Login(name: String, password: String, playerView: CustomPlayerView) extends EventMsg {
   val code = 1
 }
 
@@ -88,7 +88,7 @@ object Login {
   val code = 1
 
   implicit def LoginCodecJson: CodecJson[Login] =
-    casecodec3(Login.apply, Login.unapply)("id", "password", "playerView")
+    casecodec3(Login.apply, Login.unapply)("name", "password", "playerView")
 
 }
 

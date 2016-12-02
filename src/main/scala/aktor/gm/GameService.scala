@@ -36,6 +36,10 @@ class GameService extends Actor with ActorLogging {
 
     case task: JoinGame => handleJoin(task)
 
+    case task: InvitePlayer => invitePlayer(task)
+
+    case task: JoinSearch => handleJoinSearch(task)
+
     case task: DenyGame => removeRoom(task)
 
     case task: TaskEvent => handleAction(task)
@@ -77,6 +81,21 @@ class GameService extends Actor with ActorLogging {
         }
     }
     showPlayers()
+  }
+
+  def handleJoinSearch(task: JoinSearch): Unit = {
+
+    players.foreach(player => {
+      if (player.player.id == task.player_id) {
+        player.room_id = task.room
+      }
+    })
+
+    showPlayers()
+  }
+
+  def invitePlayer(task: InvitePlayer): Unit = {
+
   }
 
   def showPlayers() = {
@@ -160,7 +179,12 @@ class GameService extends Actor with ActorLogging {
       case Some(value) =>
         players = players.filter(pl => pl.session != end)
         if (value.room_id.getOrElse(0) != 0) {
-          rooms.get(value.room_id.get).get ! LostPlayer
+          value.room_id match {
+            case Some(id) =>
+              rooms.get(id) match {
+                case Some(room) => room ! LostPlayer(value.player.id)
+              }
+          }
         }
         showPlayers()
       case None =>
@@ -176,6 +200,10 @@ object GameService {
   case class DenyGame(session: ActorRef, event: DenyInvite)
 
   case class JoinGame(session: ActorRef, event: EnterRoom)
+
+  case class InvitePlayer(session: ActorRef, event: InviteIntoRoom)
+
+  case class JoinSearch(var session: ActorRef, player_id: Long, room: Option[Long])
 
   case class JoinLobby(var session: ActorRef, player: Player, var room_id: Option[Long])
 

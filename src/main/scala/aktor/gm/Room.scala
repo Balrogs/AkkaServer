@@ -41,11 +41,11 @@ class Room(id: Long) extends Actor with ActorLogging {
       case GameOver.code => gameOver(task.event.asInstanceOf[GameOver])
 
     }
-    case Abort => abortGame()
+    case Abort => abortGame(-1)
 
     case Tick => tickAction()
 
-    case LostPlayer => waitForPlayer()
+    case task: LostPlayer => abortGame(task.player_id)
 
     case _ => log.info("unknown message")
   }
@@ -69,11 +69,11 @@ class Room(id: Long) extends Actor with ActorLogging {
 
     players.foreach(p =>
       if (p.player.id == task.winner_id)
-        p.session ! GameOver(task.winner_id, id, winner_score, AccessToken(-1,"server")).asJson
+        p.session ! GameOver(task.winner_id, id, winner_score, AccessToken(-1, "server")).asJson
       else {
         if (p.player.rank - looser_score < 1)
           looser_score = p.player.rank - 1
-        p.session ! GameOver(task.winner_id, id, looser_score, AccessToken(-1,"server")).asJson
+        p.session ! GameOver(task.winner_id, id, looser_score, AccessToken(-1, "server")).asJson
       }
     )
 
@@ -88,14 +88,38 @@ class Room(id: Long) extends Actor with ActorLogging {
     context stop self
   }
 
-  def abortGame(): Unit = {
+  def abortGame(player_id: Long): Unit = {
+    if (player_id > 0) {
+      val rank_diff = Math.abs(players.map(a => a.player.rank).reduce((a, b) => a - b))
 
-    players.foreach(p =>
+      var winner_score: Int = if (rank_diff / 2 < 4) 6 else rank_diff / 2
+      var looser_score: Int = if (rank_diff / 3 < 4) 4 else rank_diff / 3
+      winner_score /= 2
+      looser_score /= 2
+
+      val winner_id = players.find(player => player.player.id != player_id).get.player.id
+
+      players.foreach(p =>
+        if (p.player.id == winner_id) {
+          p.session ! GameOver(p.player.id, id, winner_score, AccessToken(-1, "server")).asJson
+          sender() ! GameService.JoinSearch(p.session, p.player.id, Some(-1))
+        }
+      )
+
+      val storage = context.actorOf(Props[StorageService])
+      storage ! StorageService.StorageGameOver(players.map(p =>
+        if (p.player.id == winner_id) {
+          (p.player.id, winner_score)
+        } else
+          (p.player.id, looser_score)
+      ).toMap, winner_id)
+    } else
+      players.foreach(p =>
         p.session ! ServerResp(GameAborted.code).asJson
-    )
-
+      )
     context stop self
   }
+
 
   def addPlayer(player: PlayerInstance): Unit = {
     players = players.filter(p => p.player.id != player.player.id)
@@ -159,6 +183,6 @@ object Room {
 
   case object Abort
 
-  case object LostPlayer
+  case class LostPlayer(player_id: Long)
 
 }

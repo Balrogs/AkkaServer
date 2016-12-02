@@ -32,7 +32,7 @@ class TaskService extends Actor with ActorLogging {
 
     task.event.code match {
       case Login.code =>
-        log.info("User " + task.event.asInstanceOf[Login].id + " tries to login")
+        log.info("User " + task.event.asInstanceOf[Login].name + " tries to login")
         storage ! StorageService.StorageLogin(task.session, task.event.asInstanceOf[Login])
 
       case RegisterUser.code =>
@@ -49,11 +49,15 @@ class TaskService extends Actor with ActorLogging {
 
       case EnterLobby.code =>
         log.info("User tries to enter the lobby")
-        storage ! task.event.asInstanceOf[EnterLobby]
+        gameService ! GameService.JoinSearch(task.session, task.event.asInstanceOf[EnterLobby].player_id, None)
 
       case EnterRoom.code =>
         log.info("User tries to enter the room")
         gameService ! GameService.JoinGame(task.session, task.event.asInstanceOf[EnterRoom])
+
+      case InviteIntoRoom.code =>
+        log.info("User tries to invite other player to game")
+        gameService ! GameService.InvitePlayer(task.session, task.event.asInstanceOf[InviteIntoRoom])
 
       case DenyInvite.code =>
         gameService ! GameService.DenyGame(task.session, task.event.asInstanceOf[DenyInvite])
