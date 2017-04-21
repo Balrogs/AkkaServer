@@ -97,16 +97,26 @@ class Session(val connection: ActorRef) extends Actor with ActorLogging {
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[EnterLobby].get), token)
       case Some(EventType(41)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[DenyInvite].get), token)
-      case Some(EventType(6)) =>
+      case Some(EventType(42)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[LeaveLobby].get), token)
+      case Some(EventType(60)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameAction].get), token)
+      case Some(EventType(61)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameMove].get), token)
+      case Some(EventType(62)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameAim].get), token)
+      case Some(EventType(63)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameChangeArrow].get), token)
       case Some(EventType(5)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[InviteIntoRoom].get), token)
       case Some(EventType(7)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GameOver].get), token)
-      case Some(EventType(11)) =>
+      case Some(EventType(14)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddToFriends].get), token)
       case Some(EventType(12)) =>
         storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[AddEventScore].get), token)
+      case Some(EventType(81)) =>
+        storage ! StorageService.StorageAccessToken(TaskService.TaskEvent(self, message.decodeOption[GetGameEvent].get), token)
       case Some(_) =>
         log.info("Unknown message: {}", message)
       case None =>

@@ -40,16 +40,25 @@ class TaskService extends Actor with ActorLogging {
         storage ! StorageService.StorageRegister(task.session, task.event.asInstanceOf[RegisterUser])
 
       case GameAction.code =>
-        log.info("User tries to apply action")
-
         gameService ! task
-
+      case GameMove.code =>
+        gameService ! task
+      case GameAim.code =>
+        gameService ! task
+      case GameChangeArrow.code =>
+        gameService ! task
       case GameOver.code =>
         gameService ! task
 
       case EnterLobby.code =>
         log.info("User tries to enter the lobby")
-        gameService ! GameService.JoinSearch(task.session, task.event.asInstanceOf[EnterLobby].player_id, None)
+        val enterLobby = task.event.asInstanceOf[EnterLobby]
+        gameService ! GameService.JoinSearch(task.session, enterLobby.player_id, Some(enterLobby.lobby_id))
+
+      case LeaveLobby.code =>
+        log.info("User tries to leave the lobby")
+        val leaveLobby = task.event.asInstanceOf[LeaveLobby]
+        gameService ! GameService.JoinSearch(task.session, leaveLobby.player_id, None)
 
       case EnterRoom.code =>
         log.info("User tries to enter the room")
@@ -71,11 +80,12 @@ class TaskService extends Actor with ActorLogging {
         log.info("User tries to add friend")
         storage ! StorageService.StorageAddFriends(task.session, task.event.asInstanceOf[AddToFriends])
 
-
       case AddEventScore.code =>
         log.info("User tries to add event score")
         storage ! StorageService.StorageAddEventScore(task.session, task.event.asInstanceOf[AddEventScore])
 
+      case GetGameEvent.code =>
+        storage ! StorageService.StorageGetGameEventEvent(task.session, task.event.asInstanceOf[GetGameEvent])
 
       case _ =>
         log.info("Unknown message")

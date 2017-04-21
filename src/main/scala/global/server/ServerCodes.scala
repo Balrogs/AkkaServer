@@ -45,3 +45,15 @@ case object UserNotFound extends ServerCodes {
 case object UserEnteredLobby extends ServerCodes {
   val code = "-700"
 }
+
+case object FriendAdded extends ServerCodes {
+  val code = "-801"
+}
+
+case object FriendNotFound extends ServerCodes {
+  val code = "-802"
+}
+
+case object FriendRemoved extends ServerCodes {
+  val code = "-803"
+}

@@ -46,11 +46,15 @@ class StorageService extends Actor with ActorLogging {
       context stop self
 
     case task: StorageAddFriends =>
-      addToFriends(task)
+      checkPlayer(task)
       context stop self
 
     case task: StorageAddEventScore =>
       addEventScore(task)
+      context stop self
+
+    case task: StorageGetGameEventEvent =>
+      getEvent(task)
       context stop self
 
     case token: StorageAccessToken =>
@@ -84,23 +88,22 @@ class StorageService extends Actor with ActorLogging {
           val accessToken = AccessToken(pl.id, token)
           MongoDBDriver.updateToken(accessToken)
           task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
-          sendPlayerAward(task.session, pl)
-          gameService ! JoinLobby(task.session, pl, Some(-1))
+          gameService ! JoinLobby(task.session, pl, None, None)
         case None =>
           task.session ! ServerResp(LoginError.code).asJson
       }
     }
     player onFailure {
-      case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
+      case _ => task.session ! ServerResp(LoginError.code).asJson
     }
 
   }
 
-  def sendPlayerAward(session: ActorRef, player: Player): Unit = {
-    MongoDBDriver.findAwardByPlayerId(player.id) onSuccess {
+  def sendPlayerAward(session: ActorRef, id: Long): Unit = {
+    MongoDBDriver.findAwardByPlayerId(id) onSuccess {
       case a => a.foreach(award => {
         session ! award.asJson
-        MongoDBDriver.updateAward(Award(award.id, award.player_id, award.prize, received = true))
+        MongoDBDriver.updateAward(Award(award.id, award.player_id, award.reward, received = true))
       })
     }
   }
@@ -115,19 +118,21 @@ class StorageService extends Actor with ActorLogging {
           val idRequest = MongoDBDriver.getLastId(1)
           idRequest onSuccess {
             case id =>
-              MongoDBDriver.createPlayer(Player(
+              val pl = Player(
                 id,
                 task.event.name,
                 task.event.password,
                 1,
                 task.event.country,
-                Array.empty[Long],
-                CustomPlayerView(Color(0, 0, 0), 0, 0, 0)
-              ))
+                Array.empty[String],
+                CustomPlayerView(0, 0, 0)
+              )
+              MongoDBDriver.createPlayer(pl)
 
               val accessToken = AccessToken(id, generateAccessToken())
               MongoDBDriver.createToken(accessToken)
               task.session ! ServerResp(AuthResp(accessToken.asJson.toString()).code).asJson
+              gameService ! JoinLobby(task.session, pl, None, None)
           }
           idRequest onFailure {
             case _ => task.session ! ServerResp(ServerConnectionError.code).asJson
@@ -240,12 +245,8 @@ class StorageService extends Actor with ActorLogging {
                 val player_country_rank = country_rankings.find(p => p._1 == player.id).get._2
 
                 val country_rank = country_rankings.count(rank => rank._2 > player_country_rank)
-                if (isPrivate)
-                  task.session ! UserInfo(player.name, player.country, player.playerView, player.friends_list, player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg).asJson(UserInfo.PrivateUserInfoEncodeJson)
 
-                else
-                  task.session ! UserInfo(player.name, player.country, player.playerView, player.friends_list, player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg).asJson(UserInfo.PublicUserInfoEncodeJson)
-
+                gameService ! (UserInfo(player.name, player.country, player.playerView, player.friends_list.map((_, true)), player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg), isPrivate)
 
               case None => task.session ! ServerResp(ServerConnectionError.code).asJson
             }
@@ -256,7 +257,7 @@ class StorageService extends Actor with ActorLogging {
     }
   }
 
-  def updateEvent() = {
+  def updateEvent(): Unit = {
     MongoDBDriver.findGameEvents() onSuccess {
       case list => list.find(event => {
         val localTime = LocalDateTime.now()
@@ -273,6 +274,24 @@ class StorageService extends Actor with ActorLogging {
     }
   }
 
+  def getEvent(task : StorageGetGameEventEvent): Unit = {
+    MongoDBDriver.findGameEvents() onSuccess {
+      case list => list.find(event => {
+        val localTime = LocalDateTime.now()
+        if (LocalDateTime.parse(event.date_begin).isBefore(localTime) && LocalDateTime.parse(event.date_end).isAfter(localTime))
+          true
+        else
+          false
+      }) match {
+        case Some(event) =>
+          task.session ! event.asJson
+        case None =>
+      }
+    }
+    sendPlayerAward(task.session, task.event.player_id)
+  }
+
+
   def determineAwards(event_id: Long): Unit = {
     MongoDBDriver.findEventById(event_id) onSuccess {
       case e => e match {
@@ -281,26 +300,29 @@ class StorageService extends Actor with ActorLogging {
           var last_award_id = Await.result(MongoDBDriver.getLastId(2), timeout)
           players_map.foreach(player => {
             val player_rank = players_map.count(rank => rank._2 > player._2)
-            player_rank match {
-              case 0 =>
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(0), received = false))
-              case 1 =>
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(1), received = false))
-              case 2 =>
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(2), received = false))
-              case _ => if (player_rank > 2 && player_rank < 10) {
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(3), received = false))
-              } else if (player_rank > 9 && player_rank < 100) {
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(4), received = false))
-              } else {
-                MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.prizes(5), received = false))
-              }
+            if(player_rank <= 10){
+              MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.rewards(player_rank), received = false))
+            } else if(player_rank <= 100){
+              MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.rewards(11), received = false))
+            } else {
+              MongoDBDriver.createAward(Award(last_award_id, player._1, event.description.rewards(12), received = false))
             }
             last_award_id += 1
 
           })
-          MongoDBDriver.updateGameEvent(GameEvent(event.id, event.name, event.date_begin, event.date_end, event.description, isAwardsSet = true))
+          MongoDBDriver.updateGameEvent(GameEvent(event.id, event.date_begin, event.date_end, event.description, isAwardsSet = true))
         case None =>
+      }
+    }
+  }
+
+  def checkPlayer(task: StorageAddFriends): Unit = {
+    MongoDBDriver.playerInfoByName(task.event.friend_name) onSuccess {
+      case pl => pl match {
+        case Some(player) =>
+          addToFriends(task)
+        case _ =>
+          task.session ! ServerResp(FriendNotFound.code).asJson
       }
     }
   }
@@ -309,18 +331,21 @@ class StorageService extends Actor with ActorLogging {
     MongoDBDriver.playerInfo(task.event.id) onSuccess {
       case pl => pl match {
         case Some(player) =>
-          var new_friends_list: ArrayBuffer[Long] = ArrayBuffer.empty[Long]
-          player.friends_list.foreach(friend => new_friends_list += friend)
+          var new_friends_list = player.friends_list.toBuffer
 
-          if (new_friends_list.contains(task.event.friend_id))
-            new_friends_list -= task.event.friend_id
-          else
-            new_friends_list += task.event.friend_id
+          if (new_friends_list.contains(task.event.friend_name)) {
+            new_friends_list = new_friends_list.filter(_.equalsIgnoreCase(task.event.friend_name))
+            task.session ! ServerResp(FriendRemoved.code).asJson
+          }
+          else {
+            new_friends_list.append(task.event.friend_name)
+            task.session ! ServerResp(FriendAdded.code).asJson
+          }
 
-          MongoDBDriver.updatePlayer(Player(player.id, player.name, player.password, player.rank, player.country, new_friends_list.toArray[Long], player.playerView))
+          MongoDBDriver.updatePlayer(Player(player.id, player.name, player.password, player.rank, player.country, new_friends_list.toArray, player.playerView))
           userInfo(StorageStats(task.session, UserInfoRequest(3, player.name)), isPrivate = true)
         case _ =>
-          task.session ! ServerResp(ServerConnectionError.code).asJson
+          task.session ! ServerResp(FriendNotFound.code).asJson
       }
     }
   }
@@ -380,6 +405,8 @@ object StorageService {
   case class StorageAddFriends(session: ActorRef, event: AddToFriends)
 
   case class StorageAddEventScore(session: ActorRef, event: AddEventScore)
+
+  case class StorageGetGameEventEvent(session: ActorRef, event: GetGameEvent)
 
   case class StorageAccessToken(event: TaskEvent, token: AccessToken)
 

@@ -32,6 +32,8 @@ class GameService extends Actor with ActorLogging {
 
   override def receive = {
 
+    case task: (UserInfo, Boolean) => checkOnline(task)
+
     case task: JoinLobby => addPlayer(task)
 
     case task: JoinGame => handleJoin(task)
@@ -63,6 +65,15 @@ class GameService extends Actor with ActorLogging {
     storage ! StorageService.StorageEvent
   }
 
+  def checkOnline(task: (UserInfo, Boolean)) = {
+    task._1.friends.map(user => {
+      players.find(_.player.name.equalsIgnoreCase(user._1)) match {
+        case Some(player) =>
+        case None => (user._1, false)
+      }
+    })
+  }
+
   def addPlayer(task: JoinLobby): Unit = {
 
     val player = players.find(p => p.player.id == task.player.id)
@@ -87,7 +98,8 @@ class GameService extends Actor with ActorLogging {
 
     players.foreach(player => {
       if (player.player.id == task.player_id) {
-        player.room_id = task.room
+        task.session ! ServerResp(UserEnteredLobby.code).asJson
+        player.lobby_id = task.lobby_id
       }
     })
 
@@ -95,7 +107,7 @@ class GameService extends Actor with ActorLogging {
   }
 
   def invitePlayer(task: InvitePlayer): Unit = {
-
+      // TODO
   }
 
   def showPlayers() = {
@@ -107,7 +119,14 @@ class GameService extends Actor with ActorLogging {
   def managePlayers(): Unit = {
     players.foreach(p => {
       players.foreach(p2 => {
-        if (p != p2 && p.room_id.getOrElse(0) == 0 && p2.room_id.getOrElse(0) == 0 && p2.player.rank + 100 > p.player.rank && p2.player.rank - 100 < p.player.rank) {
+        if (p != p2 &&
+          p.lobby_id.getOrElse(0) != 0 &&
+          p2.lobby_id.getOrElse(0) != 0 &&
+          p.lobby_id.get == p2.lobby_id.get &&
+          p.room_id.getOrElse(0) == 0 &&
+          p2.room_id.getOrElse(0) == 0 &&
+          p2.player.rank + 100 > p.player.rank &&
+          p2.player.rank - 100 < p.player.rank) {
           val room_id = createRoom()
           p.session ! InviteIntoRoom(p2.player.id, p2.player.name, p2.player.rank, room_id, AccessToken(-1, "server")).asJson
           p2.session ! InviteIntoRoom(p.player.id, p.player.name, p.player.rank, room_id, AccessToken(-1, "server")).asJson
@@ -163,6 +182,21 @@ class GameService extends Actor with ActorLogging {
           case Some(room) => room ! TaskEvent(task.session, task.event)
           case None =>
         }
+      case GameMove.code =>
+        rooms.get(task.event.asInstanceOf[GameMove].room_id) match {
+          case Some(room) => room ! TaskEvent(task.session, task.event)
+          case None =>
+        }
+      case GameAim.code =>
+        rooms.get(task.event.asInstanceOf[GameAim].room_id) match {
+          case Some(room) => room ! TaskEvent(task.session, task.event)
+          case None =>
+        }
+      case GameChangeArrow.code =>
+        rooms.get(task.event.asInstanceOf[GameChangeArrow].room_id) match {
+          case Some(room) => room ! TaskEvent(task.session, task.event)
+          case None =>
+        }
       case GameOver.code =>
         rooms.get(task.event.asInstanceOf[GameOver].room_id) match {
           case Some(room) => room ! TaskEvent(task.session, task.event)
@@ -172,6 +206,7 @@ class GameService extends Actor with ActorLogging {
     }
 
   }
+
 
   def removePlayer(end: ActorRef) = {
     val p = players.find(p => p.session == end)
@@ -183,7 +218,9 @@ class GameService extends Actor with ActorLogging {
             case Some(id) =>
               rooms.get(id) match {
                 case Some(room) => room ! LostPlayer(value.player.id)
+                case None =>
               }
+            case None =>
           }
         }
         showPlayers()
@@ -203,9 +240,9 @@ object GameService {
 
   case class InvitePlayer(session: ActorRef, event: InviteIntoRoom)
 
-  case class JoinSearch(var session: ActorRef, player_id: Long, room: Option[Long])
+  case class JoinSearch(var session: ActorRef, player_id: Long, var lobby_id : Option[Long])
 
-  case class JoinLobby(var session: ActorRef, player: Player, var room_id: Option[Long])
+  case class JoinLobby(var session: ActorRef, player: Player, var room_id: Option[Long], var lobby_id : Option[Long])
 
   case object UpdateGameEvent
 

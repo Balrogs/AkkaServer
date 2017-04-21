@@ -38,6 +38,12 @@ class Room(id: Long) extends Actor with ActorLogging {
 
       case GameAction.code => applyAction(task)
 
+      case GameMove.code => applyAction(task)
+
+      case GameAim.code => applyAction(task)
+
+      case GameChangeArrow.code => applyAction(task)
+
       case GameOver.code => gameOver(task.event.asInstanceOf[GameOver])
 
     }
@@ -145,16 +151,22 @@ class Room(id: Long) extends Actor with ActorLogging {
   }
 
   def applyAction(task: TaskEvent): Unit = {
-    log.info("Action: " + task.event.asInstanceOf[GameAction])
     actions.put(task, false)
-
   }
 
   def tickAction() = {
     if (!isPaused) {
       actions = actions.filter(a => !a._2).map(a => {
-        log.info("Action sent: " + a._1.event.asInstanceOf[GameAction])
-        players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAction].asJson(GameAction.GameActionEncodeJson)
+        a._1.event.code match {
+          case GameAction.code =>
+            players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAction].asJson(GameAction.GameActionEncodeJson)
+          case GameMove.code =>
+            players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameMove].asJson(GameMove.GameMoveEncodeJson)
+          case GameAim.code =>
+            players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameAim].asJson(GameAim.GameAimEncodeJson)
+          case GameChangeArrow.code =>
+            players.find(p => p.session != a._1.session).get.session ! a._1.event.asInstanceOf[GameChangeArrow].asJson(GameChangeArrow.GameChangeArrowEncodeJson)
+        }
         (a._1, true)
       })
     }
