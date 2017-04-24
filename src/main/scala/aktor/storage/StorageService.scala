@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import aktor.TaskService.TaskEvent
+import aktor.gm.GameService
 import aktor.gm.GameService.JoinLobby
 import argonaut.Argonaut._
 import global.game._
@@ -246,7 +247,7 @@ class StorageService extends Actor with ActorLogging {
 
                 val country_rank = country_rankings.count(rank => rank._2 > player_country_rank)
 
-                gameService ! (UserInfo(player.name, player.country, player.playerView, player.friends_list.map((_, true)), player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg), isPrivate)
+                gameService ! GameService.CheckOnline(task.session, UserInfo(player.name, player.country, player.playerView, player.friends_list.map((_, true)), player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg), isPrivate)
 
               case None => task.session ! ServerResp(ServerConnectionError.code).asJson
             }

@@ -32,7 +32,7 @@ class GameService extends Actor with ActorLogging {
 
   override def receive = {
 
-    case task: (UserInfo, Boolean) => checkOnline(task)
+    case task: CheckOnline => checkOnline(task)
 
     case task: JoinLobby => addPlayer(task)
 
@@ -65,13 +65,15 @@ class GameService extends Actor with ActorLogging {
     storage ! StorageService.StorageEvent
   }
 
-  def checkOnline(task: (UserInfo, Boolean)) = {
-    task._1.friends.map(user => {
-      players.find(_.player.name.equalsIgnoreCase(user._1)) match {
-        case Some(player) =>
-        case None => (user._1, false)
-      }
+  def checkOnline(task: CheckOnline) = {
+    val friendsList = task.userInfo.friends.map(user => {
+      (user._1, players.exists(_.player.name.equalsIgnoreCase(user._1)))
     })
+    if(task.isPrivate){
+      task.session ! task.userInfo.copy(friends = friendsList).asJson(UserInfo.PrivateUserInfoEncodeJson)
+    } else {
+      task.session ! task.userInfo.copy(friends = friendsList).asJson(UserInfo.PublicUserInfoEncodeJson)
+    }
   }
 
   def addPlayer(task: JoinLobby): Unit = {
@@ -233,6 +235,8 @@ class GameService extends Actor with ActorLogging {
 }
 
 object GameService {
+
+  case class CheckOnline(session: ActorRef, userInfo: UserInfo, isPrivate : Boolean)
 
   case class DenyGame(session: ActorRef, event: DenyInvite)
 
