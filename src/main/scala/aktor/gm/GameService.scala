@@ -66,9 +66,14 @@ class GameService extends Actor with ActorLogging {
   }
 
   def checkOnline(task: CheckOnline) = {
+
     val friendsList = task.userInfo.friends.map(user => {
-      (user._1, players.exists(_.player.name.equalsIgnoreCase(user._1)))
+     players.find(_.player.name.equalsIgnoreCase(user.name)) match {
+       case Some(friend) =>  FriendInfo(user.name, friend.player.id, online = true)
+       case None => FriendInfo(user.name, user.id, online = false)
+     }
     })
+
     if(task.isPrivate){
       task.session ! task.userInfo.copy(friends = friendsList).asJson(UserInfo.PrivateUserInfoEncodeJson)
     } else {
@@ -100,7 +105,9 @@ class GameService extends Actor with ActorLogging {
 
     players.foreach(player => {
       if (player.player.id == task.player_id) {
-        task.session ! ServerResp(UserEnteredLobby.code).asJson
+        if(task.lobby_id.isDefined) {
+          task.session ! ServerResp(UserEnteredLobby.code).asJson
+        }
         player.lobby_id = task.lobby_id
       }
     })

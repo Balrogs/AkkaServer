@@ -161,7 +161,7 @@ class StorageService extends Actor with ActorLogging {
                 MongoDBDriver.findPlayerRankings(pl.id, "global") onSuccess {
                   case rankings => rankings match {
                     case Some(rank) =>
-                      MongoDBDriver.updateRankings(Rankings("global", pl.id, pl.rank + p._2))
+                      MongoDBDriver.updateRankings(Rankings("global", pl.id,  pl.name, pl.country, pl.rank + p._2))
                     case None =>
                   }
                 }
@@ -170,7 +170,7 @@ class StorageService extends Actor with ActorLogging {
                 MongoDBDriver.findPlayerRankings(pl.id, "country " + pl.country) onSuccess {
                   case rankings => rankings match {
                     case Some(rank) =>
-                      MongoDBDriver.updateRankings(Rankings("country " + pl.country, pl.id, pl.rank + p._2))
+                      MongoDBDriver.updateRankings(Rankings("country " + pl.country, pl.id,  pl.name, pl.country, pl.rank + p._2))
                     case None =>
                   }
                 }
@@ -202,24 +202,18 @@ class StorageService extends Actor with ActorLogging {
 
         MongoDBDriver.findRankingsByName(task.event.name) onSuccess {
           case r_list =>
-            task.session ! RankingsRequest(task.event.name, r_list.sortWith((a, b) =>
-              if (a.rank > b.rank) true
-              else false
-            )).asJson
+            task.session ! RankingsRequest(task.event.name, r_list.sortWith((a, b) => a.rank > b.rank)).asJson
         }
 
       case 2 =>
 
         MongoDBDriver.findRankingsByName(task.event.name) onSuccess {
           case r_list =>
-            task.session ! RankingsRequest(task.event.name, r_list.sortWith((a, b) =>
-              if (a.rank > b.rank) true
-              else false
-            )).asJson
+            task.session ! RankingsRequestCountry(task.event.name, r_list.sortWith((a, b) => a.rank > b.rank)).asJson
         }
 
       case 3 =>
-        userInfo(task, isPrivate = false)
+        userInfo(task, isPrivate = true)
 
     }
   }
@@ -235,19 +229,19 @@ class StorageService extends Actor with ActorLogging {
                   b.winner_id == stats.id
                 })
 
-                val global_rankings = Await.result(MongoDBDriver.findRankingsByName("global"), timeout).map(e => (e.player_id, e.rank))
+                val global_rankings = Await.result(MongoDBDriver.findRankingsByName("global"), timeout).map(e => (e.player_name, e.rank))
 
-                val player_global_rank = global_rankings.find(p => p._1 == player.id).get._2
+                val player_global_rank = global_rankings.find(p => p._1.equalsIgnoreCase(player.name)).get._2
 
                 val global_rank = global_rankings.count(rank => rank._2 > player_global_rank)
 
-                val country_rankings = Await.result(MongoDBDriver.findRankingsByName("country-" + player.country), timeout).map(e => (e.player_id, e.rank))
+                val country_rankings = Await.result(MongoDBDriver.findRankingsByName("country-" + player.country), timeout).map(e => (e.player_name, e.rank))
 
-                val player_country_rank = country_rankings.find(p => p._1 == player.id).get._2
+                val player_country_rank = country_rankings.find(p => p._1.equalsIgnoreCase(player.name)).get._2
 
                 val country_rank = country_rankings.count(rank => rank._2 > player_country_rank)
 
-                gameService ! GameService.CheckOnline(task.session, UserInfo(player.name, player.country, player.playerView, player.friends_list.map((_, true)), player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg), isPrivate)
+                gameService ! GameService.CheckOnline(task.session, UserInfo(player.name, player.country, player.playerView, player.friends_list.map(FriendInfo(_, -1, true)), player.rank, global_rank + 1, country_rank + 1, stats.battles.size, battles_win, stats.battles.size - battles_win, stats.date_reg), isPrivate)
 
               case None => task.session ! ServerResp(ServerConnectionError.code).asJson
             }
@@ -354,7 +348,7 @@ class StorageService extends Actor with ActorLogging {
   def addEventScore(task: StorageAddEventScore): Unit = {
     val event_name = "event-" + task.event.event_id
     val rankings = Await.result(MongoDBDriver.findPlayerRankings(task.event.id, event_name), timeout)
-    val new_rankings = Rankings(event_name, task.event.id, task.event.score)
+    val new_rankings = Rankings(event_name, task.event.id, task.event.name, task.event.country, task.event.score)
     Await.result(rankings.size match {
       case 1 =>
         MongoDBDriver.updateRankings(new_rankings)

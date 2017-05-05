@@ -29,43 +29,43 @@ case class ServerResp(answer: String) extends EventMsg {
   val code = 3
 }
 
-case class EnterRoom(player_id: Long, room_id: Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+case class EnterRoom(player_id: Long, room_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 4
 }
 
-case class EnterLobby(player_id: Long, lobby_id : Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+case class EnterLobby(player_id: Long, lobby_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 40
 }
 
-case class DenyInvite(player_id: Long, room_id: Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+case class DenyInvite(player_id: Long, room_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 41
 }
 
-case class LeaveLobby(player_id: Long, token:AccessToken) extends EventMsg with EventMsgSecured {
+case class LeaveLobby(player_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 42
 }
 
-case class InviteIntoRoom(player_id: Long, player_name: String, player_rank: Int, room_id: Long, token:AccessToken) extends EventMsg  with EventMsgSecured  {
+case class InviteIntoRoom(player_id: Long, player_name: String, player_rank: Int, room_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 5
 }
 
-case class GameAction(player_id: Long, room_id: Long, angle: Float, power: Float, x:Int, y:Int, token:AccessToken) extends EventMsg with EventMsgSecured  {
+case class GameAction(player_id: Long, room_id: Long, angle: Float, power: Float, x: Int, y: Int, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 60
 }
 
-case class GameMove(player_id: Long, room_id: Long, dir: Int, token:AccessToken) extends EventMsg with EventMsgSecured  {
+case class GameMove(player_id: Long, room_id: Long, dir: Int, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 61
 }
 
-case class GameAim(player_id: Long, room_id: Long, angle: Float, power: Float, token:AccessToken) extends EventMsg with EventMsgSecured  {
+case class GameAim(player_id: Long, room_id: Long, angle: Float, power: Float, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 62
 }
 
-case class GameChangeArrow(player_id: Long, room_id: Long, arrow: String, token:AccessToken) extends EventMsg with EventMsgSecured  {
+case class GameChangeArrow(player_id: Long, room_id: Long, arrow: String, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 63
 }
 
-case class GameOver(winner_id: Long, room_id: Long, v_type: Int, token:AccessToken) extends EventMsg with EventMsgSecured  {
+case class GameOver(winner_id: Long, room_id: Long, v_type: Int, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 7
 }
 
@@ -73,26 +73,31 @@ case class UserInfoRequest(s_type: Int, name: String) extends EventMsg {
   val code = 8
 }
 
-case class GetGameEvent(player_id: Long, token:AccessToken) extends EventMsg  with EventMsgSecured {
+case class GetGameEvent(player_id: Long, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 81
 }
 
-case class UserInfo(name: String, country: Int, playerView: CustomPlayerView, friends: Array[(String, Boolean)],rank: Int, global_rank: Int, country_rank: Int, battles_count: Int, battles_win: Int, battles_loose: Int, date_reg: String) extends EventMsg {
+case class UserInfo(name: String, country: Int, playerView: CustomPlayerView, friends: Array[FriendInfo], rank: Int, global_rank: Int, country_rank: Int, battles_count: Int, battles_win: Int, battles_loose: Int, date_reg: String) extends EventMsg {
   val code = 9
 }
+
+case class FriendInfo(name: String, id: Long, online: Boolean)
 
 case class RankingsRequest(name: String, list: Array[Rankings]) extends EventMsg {
   val code = 10
 }
 
-case class AddToFriends(id: Long, friend_name: String, token:AccessToken) extends EventMsg  with EventMsgSecured {
+case class RankingsRequestCountry(name: String, list: Array[Rankings]) extends EventMsg {
+  val code = 11
+}
+
+case class AddToFriends(id: Long, friend_name: String, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 14
 }
 
-case class AddEventScore(id: Long, event_id: Long, score: Int, token:AccessToken) extends EventMsg  with EventMsgSecured {
+case class AddEventScore(id: Long, event_id: Long, name: String, country: Int, score: Int, token: AccessToken) extends EventMsg with EventMsgSecured {
   val code = 12
 }
-
 
 
 object EventType {
@@ -163,7 +168,7 @@ object InviteIntoRoom {
     casecodec5(InviteIntoRoom.apply, InviteIntoRoom.unapply)("player_id", "player_name", "player_rank", "room_id", "token")
 
   implicit def InviteIntoRoomEncodeJson: EncodeJson[InviteIntoRoom] =
-    jencode5L((p: InviteIntoRoom) => (p.player_id, p.player_name, p.player_rank, p.room_id, p.code))("player_id","player_name", "player_rank", "room_id", "code")
+    jencode5L((p: InviteIntoRoom) => (p.player_id, p.player_name, p.player_rank, p.room_id, p.code))("player_id", "player_name", "player_rank", "room_id", "code")
 }
 
 object GameAction {
@@ -183,7 +188,7 @@ object GameMove {
     casecodec4(GameMove.apply, GameMove.unapply)("player_id", "room_id", "dir", "token")
 
   implicit def GameMoveEncodeJson: EncodeJson[GameMove] =
-    jencode4L((p: GameMove) => (p.player_id, p.room_id, p.dir,  p.code))("player_id", "room_id", "dir", "code")
+    jencode4L((p: GameMove) => (p.player_id, p.room_id, p.dir, p.code))("player_id", "room_id", "dir", "code")
 }
 
 object GameAim {
@@ -207,7 +212,6 @@ object GameChangeArrow {
 }
 
 
-
 object GameOver {
   val code = 7
 
@@ -215,7 +219,7 @@ object GameOver {
     casecodec4(GameOver.apply, GameOver.unapply)("winner_id", "room_id", "v_type", "token")
 
   implicit def GameOverEncodeJson: EncodeJson[GameOver] =
-    jencode5L((p: GameOver) => (p.winner_id, p.room_id, p.v_type, p.token, p.code))("winner_id", "room_id", "v_type", "token" ,"code")
+    jencode5L((p: GameOver) => (p.winner_id, p.room_id, p.v_type, p.token, p.code))("winner_id", "room_id", "v_type", "token", "code")
 }
 
 object UserInfoRequest {
@@ -231,8 +235,7 @@ object UserInfo {
   val code = 9
 
   implicit def PrivateUserInfoEncodeJson: EncodeJson[UserInfo] =
-    jencode12L((p: UserInfo) => (p.name, p.country, p.playerView,p.friends,  p.rank, p.global_rank, p.country_rank, p.battles_count, p.battles_win, p.battles_loose, p.date_reg, p.code))("name", "country", "playerView", "friends", "rank", "global_rank", "country_rank", "battles_count", "battles_win", "battles_loose", "date_reg", "code")
-
+    jencode12L((p: UserInfo) => (p.name, p.country, p.playerView, p.friends, p.rank, p.global_rank, p.country_rank, p.battles_count, p.battles_win, p.battles_loose, p.date_reg, p.code))("name", "country", "playerView", "friends", "rank", "global_rank", "country_rank", "battles_count", "battles_win", "battles_loose", "date_reg", "code")
 
 
   implicit def PublicUserInfoEncodeJson: EncodeJson[UserInfo] =
@@ -241,11 +244,25 @@ object UserInfo {
 
 }
 
+object FriendInfo {
+
+  implicit def FriendInfoEncodeJson: EncodeJson[FriendInfo] =
+    jencode3L((p: FriendInfo) => (p.name, p.id, p.online))("player_name", "player_id", "online")
+
+}
+
 object RankingsRequest {
   val code = 10
 
   implicit def RankingsRequestEncodeJson: EncodeJson[RankingsRequest] =
     jencode3L((p: RankingsRequest) => (p.name, p.list, p.code))("name", "list", "code")
+}
+
+object RankingsRequestCountry {
+  val code = 11
+
+  implicit def RankingsRequestCountryEncodeJson: EncodeJson[RankingsRequestCountry] =
+    jencode3L((p: RankingsRequestCountry) => (p.name, p.list, p.code))("name", "list", "code")
 }
 
 object AddToFriends {
@@ -259,7 +276,7 @@ object AddEventScore {
   val code = 12
 
   implicit def AddEventScoreCodecJson: CodecJson[AddEventScore] =
-    casecodec4(AddEventScore.apply, AddEventScore.unapply)("id", "event_id", "score", "token")
+    casecodec6(AddEventScore.apply, AddEventScore.unapply)("id", "event_id", "name", "country", "score", "token")
 
 }
 

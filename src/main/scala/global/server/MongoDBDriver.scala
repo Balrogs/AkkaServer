@@ -26,8 +26,8 @@ object MongoDBDriver {
   def createPlayer(player: Player): Future[Unit] = {
     playerCollection.flatMap(_.insert(player).map(_ => {}))
     createStats(Stats(player.id, Array.empty[Battle], LocalDateTime.now().toString))
-    createRankings(Rankings("global", player.id, player.rank))
-    createRankings(Rankings("country-" + player.country, player.id, player.rank))
+    createRankings(Rankings("global", player.id, player.name, player.country, player.rank))
+    createRankings(Rankings("country-" + player.country, player.id, player.name, player.country, player.rank))
   }
 
   def createStats(stats: Stats): Future[Unit] = statsCollection.flatMap(_.insert(stats).map(_ => {}))
